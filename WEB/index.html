@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en-US">
+
+<head>
+   
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+   <!-- --------------style chart---------------- -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.2.0/chart.min.js"></script>
+
+    <title>HydroControlCenter</title>
+</head>
+
+<body>
+    <h1>Hydro Control Center</h1>
+    <div class="container">
+        <div class="circle-temp" id="item">
+            <div class="temperature">Temperature</div>
+            <div class="temperature-value">
+                <span id="text-temp">--</span>
+            </div>
+            <div class="unit">°C</div>
+        </div>
+        <div class="circle-Soil" id="item">
+            <div class="soil-moisture">HUMIDITY</div>
+            <div class="soil-moisture-value">
+                <span id="text-soil">--</span>
+            </div>
+            <div class="unit">%</div>
+        </div>
+        <div class="form-control" id="item">
+            <div class="form-row">
+                <label for="input" class="form-label"> RUN</label>
+                <div class="on-off">
+                    <div class="ON"></div>
+                    <div class="OFF"></div>
+                </div>
+            </div>
+            <div class="form-row">
+                <label for="input" class="form-label"> DURING (S)</label>
+                <div class="display-during">
+                    <span id="during">0.0</span>
+                </div>
+            </div>
+            <div class="form-row">
+                <label for="input" class="form-label"> LITER (L)</label>
+                <div class="display-liter">
+                    <span id="liter">0.0</span>
+                </div>
+            </div>
+        </div>
+        <div class="table" id="item">
+            <table>
+                <thead>
+                    <tr>
+                        <th>DATE AND TIME</th>
+                        <th>TEMP</th>
+                        <th>HUMIDITY</th>
+                        <th>
+                            <p>DURING</p>
+                        </th>
+                        <th>
+                            <p>LITER</p>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="table-body">
+                    <!-- Nội dung bảng sẽ được thêm vào đây -->
+                </tbody>
+            </table>
+        </div>
+        <div class="chart">
+            <canvas id="myChart" style="width:100%"></canvas>
+        </div>
+    </div>
+</body>
+<script>
+//-------------Create Chart---------------------
+
+var label = [];
+var data1 = [];
+var data2 = [];
+       
+        
+const chartdata = {
+    labels: label,
+    datasets: [{
+        label: 'temperature',
+        backgroundColor: 'rgb(255, 99, 132)',
+        borderColor: 'rgb(255, 99, 132)',
+        data: data1
+    },
+    {
+        label: 'Humidity',
+        backgroundColor: 'rgb(99, 255, 132)',
+        borderColor: 'rgb(99, 255, 132)',
+        data: data2
+    }
+           
+            ]
+        };
+const config = {
+    type: 'line',
+    data: chartdata,
+    options: {
+        animation:false
+            }
+        };
+        var myChart = new Chart(
+        document.getElementById('myChart'),config);
+
+
+
+ //-----variables-----------------
+var mode = 0;
+var startTime = null;
+var endTime = null;
+var totalLiter = 0;
+var totalTime = 0;
+var soil = 0;
+var currentDateTime=null;
+var temp=0;
+var runningTime=0;
+var liters=0;
+  //load data from database
+  $(document).ready(function() {
+    //updateChart();
+    setInterval(update, 1000); 
+  });
+ 
+  function update() {
+    // Send request to database to get data
+    $.post('ReadData.php', function(data) {
+        label = [];
+        data1 = [];
+        data2 = [];
+      
+      for (var i in data) {
+        //---- create data values for update chart--------------
+        var currentDate = new Date();
+        currentDateTime = currentDate.toLocaleString();
+        label.push(currentDateTime);
+        data1.push(data[i].temperature);
+        data2.push(data[i].SOIL);
+        //-------Display------------------------------------                   
+        temp = data[i].temperature;
+        soil = data[i].SOIL;
+        var mode = data[i].mode;
+       
+        
+      }
+      //----update values chart-------------------------
+        myChart.data.labels = label;
+        myChart.data.datasets[0].data = data1;
+        myChart.data.datasets[1].data = data2;       
+        myChart.update();
+    });
+    
+  }
+ //-------function mode ON and OFF---------
+  function updateButtonStatus() {
+          if (parseInt(mode) === 0) {      
+            $('#item .on-off .ON').addClass('active');
+            // console.log("yes")
+          } else {
+            $('#item .on-off .ON').removeClass('active');
+          }
+        
+          if (parseInt(mode) === 1) {
+            $('#item .on-off .OFF').addClass('active');
+            // console.log("no")
+          } else {
+            $('#item .on-off .OFF').removeClass('active');
+          }
+        }
+        
+//------function startMotor-----------
+function startMotor() {
+  if (mode === 0) {
+    mode = 1;
+    startTime = new Date();
+    console.log('Động cơ đã khởi động.');
+    updateButtonStatus();
+  }
+}
+//------function stopMotor------------
+function stopMotor() {
+  if (mode === 1) {
+    mode = 0;
+    endTime = new Date();
+    runningTime = (endTime - startTime) / 1000;
+    liters = runningTime * 0.027;
+    totalLiter += liters;
+    totalTime += runningTime;
+    updateButtonStatus();
+
+    console.log('Động cơ đã tắt.');
+    console.log('Thời gian bơm: ' + runningTime.toFixed(1) + ' giây');
+    console.log('Số lít nước đã bơm: ' + liters.toFixed(1) + ' lít');
+//--------display valuse during and liter
+    document.getElementById('during').textContent=runningTime.toFixed(1);
+    document.getElementById('liter').textContent=liters.toFixed(1);
+
+  }
+}
+//-------new values---------------------
+function NewValues(){
+  var newRow =
+          '<tr>' +
+          '<td>' +
+          currentDateTime +
+          '</td>' +
+          '<td>' +
+          temp +
+          '</td>' +
+          '<td>' +
+          soil +
+          '</td>' +
+          '<td>' +
+          runningTime.toFixed(1) +
+          '</td>' +
+          '<td>' +
+          liters.toFixed(1) +
+          '</td>' +
+          '</tr>';
+
+        var tableBody = $('.table-body');
+        var rowCount = tableBody.find('tr').length;
+
+        if (rowCount >= 8) {
+          tableBody.find('tr:nth-child(1)').remove();
+        }
+
+        tableBody.append(newRow);
+
+}
+
+//-------reset value-------------------
+function Reset (){
+  var newRow =
+          '<tr>' +
+          '<td>' +
+          currentDateTime +
+          '</td>' +
+          '<td>' +
+          temp +
+          '</td>' +
+          '<td>' +
+          soil +
+          '</td>' +
+          '<td>' +
+          0.0 +
+          '</td>' +
+          '<td>' +
+          0.0 +
+          '</td>' +
+          '</tr>';
+
+        var tableBody = $('.table-body');
+        var rowCount = tableBody.find('tr').length;
+
+        if (rowCount >= 8) {
+          tableBody.find('tr:nth-child(1)').remove();
+        }
+
+        tableBody.append(newRow);
+
+
+}
+
+
+// Motor control function based on Humidity  value
+function controlMotorBasedOnsoil() {
+  if (soil < 45) {
+    startMotor(); // start motor
+    Reset();
+  } else {
+    stopMotor(); // stop motor
+    NewValues();
+  }
+}
+
+// Function update value Humidity
+function updatesoil() {
+  console.log('Giá trị soil: ' + soil);
+
+  controlMotorBasedOnsoil(); 
+  document.getElementById('text-temp').textContent = temp;
+  document.getElementById('text-soil').textContent = soil;
+}
+
+// Update  Humidity value every second
+setInterval(updatesoil, 1000); 
+</script>
+
+</html>
+
+
+
